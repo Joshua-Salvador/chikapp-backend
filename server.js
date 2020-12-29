@@ -73,11 +73,16 @@ app.post("/create-chika", (req, res) => {
 app.get("/:user", (req, res) => {
   const user = _.snakeCase(req.params.user);
 
-  User.find({ username: user }, (err, user) => {
+  User.findOne({ username: user }, (err, user) => {
+    // console.log(user, req.params);
     if (err) {
       res.status(500).send(err);
     } else {
-      res.status(200).send(user);
+      if (user.isAuthenticated === true) {
+        res.status(200).send(user);
+      } else {
+        res.status(403).send("please login");
+      }
     }
   });
 });
@@ -85,40 +90,80 @@ app.get("/:user", (req, res) => {
 app.post("/registeruser", (req, res) => {
   const userData = req.body;
 
-  userData.username = _.snakeCase(userData.displayname);
-  userData.isVerified = false;
-  userData.chikaId = uuidv4();
-  userData.isAuthenticated = true;
+  User.find(
+    { tagname: userData.tagname, displayname: userData.displayname },
+    (err, user) => {
+      if (err) {
+        res.status(500).send(err);
+      } else if (user !== null) {
+        res.status(409).send("Username or tagname already in use");
+      } else {
+        userData.username = _.snakeCase(userData.displayname);
+        userData.isVerified = false;
+        userData.chikaId = uuidv4();
+        userData.isAuthenticated = true;
 
-  console.log(userData);
+        console.log(userData);
 
-  User.create(userData, (err, user) => {
-    if (err) {
-      res.status(500).send(err);
-    } else {
-      res.status(201).send(user);
+        User.create(userData, (err, user) => {
+          if (err) {
+            res.status(500).send(err);
+          } else {
+            res.status(201).send(user);
+          }
+        });
+        console.log(res);
+      }
     }
-  });
-  console.log(res);
+  );
 });
 
 app.post("/loginuser", (req, res) => {
   const loginUser = req.body;
+  console.log(loginUser, typeof loginUser);
 
-  User.findOne({ displayname: loginUser.displayname }, (err, user) => {
-    if (err) {
-      res.status(500).send(err);
-    } else {
-      if (user.password === loginUser.password) {
-        res.status(200).send(user);
+  User.findOne({ displayname: loginUser.displayname }, async (err, user) => {
+    if (user) {
+      if (err) {
+        res.status(500).send(err);
       } else {
-        res.status(403).send("Password Incorrect");
+        if (user.password === loginUser.password) {
+          await User.updateOne(
+            { displayname: loginUser.displayname },
+            { isAuthenticated: true }
+          );
+          console.log(user);
+          res.status(200).send(user);
+          // res.redirect("/" + displayname);
+        } else if (
+          user.password !== loginUser.password ||
+          loginUser.password === null
+        ) {
+          res.status(403).send("Password Incorrect");
+        }
       }
+    } else {
+      res.status(403).send("Password Incorrect");
     }
   });
 });
 
-app.post("logout", (req, res) => {});
+app.post("/logout", async (req, res) => {
+  const logoutUser = req.body.username;
+  console.log(logoutUser);
+  User.findOne({ username: logoutUser }, async (err, user) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      await User.updateOne(
+        { username: user.username },
+        { isAuthenticated: false }
+      );
+      console.log(user);
+      res.status(201).send(user);
+    }
+  });
+});
 
 // Listener
 app.listen(port, () => console.log("API Working"));

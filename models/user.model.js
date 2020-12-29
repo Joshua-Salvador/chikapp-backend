@@ -6,7 +6,7 @@ const userSchema = mongoose.Schema({
   tagname: String,
   password: String,
   chikaId: String,
-  isVerified: Boolean,
+  isVerified: { type: Boolean, default: false },
   userImg: String,
   isAuthenticated: Boolean,
 });
